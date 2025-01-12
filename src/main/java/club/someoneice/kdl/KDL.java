@@ -6,8 +6,12 @@ import club.someoneice.kdl.objects.KDLValue;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * KDL is the core parse for KDL files.
+ *
+ * @author AmarokIce
+ */
 public final class KDL {
-
 
     private KDLNode parse(String[] lines) {
         final String name = null;
@@ -19,6 +23,23 @@ public final class KDL {
         return new KDLNode(name, values);
     }
 
+
+    private KDLValue<?>[] handler(final String[] raw) {
+
+    }
+
+    /**
+     * The pre handler will do three things:
+     * - Clean the line break;
+     * - Remove line comment;
+     * - Remove multi-line comment;
+     *
+     * The "slashdash" comment will handle on common handler.
+     * Because the multi-line's data like multi-line text should handle in deep.
+     *
+     * @param raw The raw data of lines.
+     * @return The data finish pre handle.
+     */
     private String[] preHandler(final String[] raw) {
 
         List<String> list = new ArrayList<>();
