@@ -1,7 +1,7 @@
 package club.someoneice.kdl.objects;
 
 public final class KDLNull extends KDLValue<Void> {
-    public KDLNull(String name) {
+    public KDLNull(final String name) {
         super(name, null);
     }
 

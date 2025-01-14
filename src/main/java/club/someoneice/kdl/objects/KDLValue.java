@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class KDLValue<T> {
-    private final String name;
-    private T value;
+    protected final String name;
+    protected T value;
 
     public KDLValue(final String name, final T value) {
         this.name = name;

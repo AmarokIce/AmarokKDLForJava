@@ -9,16 +9,20 @@ import java.util.List;
 import java.util.Objects;
 
 public class KDLNode extends KDLValue<List<KDLValue<?>>> implements Iterable<KDLValue<?>> {
-    private final String name;
-
-    public KDLNode(String name) {
-        super(new ArrayList<>());
-        this.name = name;
+    public KDLNode(final String name) {
+        super(name, new ArrayList<>());
     }
 
-    public KDLNode(String name, List<KDLValue<?>> value) {
+    public KDLNode(final String name, final List<KDLValue<?>> value) {
+        super(name, value);
+    }
+
+    public KDLNode() {
+        super(new ArrayList<>());
+    }
+
+    public KDLNode(final List<KDLValue<?>> value) {
         super(value);
-        this.name = name;
     }
 
     @Override
@@ -53,26 +57,26 @@ public class KDLNode extends KDLValue<List<KDLValue<?>>> implements Iterable<KDL
         ((KDLNode) value2).addAll((KDLNode) value);
     }
 
-    public void add(String name, KDLValue<?> value) {
+    public void add(final String name, final KDLValue<?> value) {
         this.add(new KDLValue<>(name, value.getValue()).asValue());
     }
 
-    public void addAll(List<KDLValue<?>> value) {
+    public void addAll(final List<KDLValue<?>> value) {
         value.forEach(this::add);
     }
 
-    public void addAll(KDLNode value) {
+    public void addAll(final KDLNode value) {
         value.forEach(this::add);
     }
 
 
     @Nullable
-    public KDLValue<?> getAt(int index) {
+    public KDLValue<?> getAt(final int index) {
         return this.getValue().get(index);
     }
 
     @Nullable
-    public KDLValue<?> get(String name) {
+    public KDLValue<?> get(final String name) {
         return name.isEmpty() ? null : this.getValue().stream()
                 .filter(KDLValue::hasName)
                 .filter(v -> v.getName().equals(name))
@@ -80,7 +84,7 @@ public class KDLNode extends KDLValue<List<KDLValue<?>>> implements Iterable<KDL
                 .orElse(null);
     }
 
-    public KDLValue<?> findOrAdd(String name, KDLValue<?> value) {
+    public KDLValue<?> findOrAdd(final String name, final KDLValue<?> value) {
         if (name.isEmpty()) return null;
         KDLValue<?> val = this.getValue().stream()
                 .filter(KDLValue::hasName)
@@ -96,7 +100,7 @@ public class KDLNode extends KDLValue<List<KDLValue<?>>> implements Iterable<KDL
         return value;
     }
 
-    public void remove(String name) {
+    public void remove(final String name) {
         if (name.isEmpty()) return;
         this.getValue().removeIf(v -> v.getName().equals(name));
     }
