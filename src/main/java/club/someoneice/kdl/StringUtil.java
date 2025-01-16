@@ -25,21 +25,39 @@ public final class StringUtil {
     }
 
     public static int findMarkRound(String str, final String markStart, final String markEnd) {
-        int endAt = str.indexOf(markEnd) + 2;
-        if (endAt == -1) {
-            return -1;
-        }
+        int pass = 0;
 
-        final int startAt = str.indexOf(markStart);
+        int startAt;
+        int endAt;
+
+        do {
+            startAt = str.indexOf(markStart);
+            endAt = str.indexOf(markEnd);
+
+            if (endAt == -1 || startAt == -1) {
+                return -1;
+            }
+
+            if (endAt < startAt) {
+                endAt += markEnd.length();
+
+                pass += endAt;
+                str = str.substring(endAt);
+            } else break;
+        } while (true);
+
+        startAt += markStart.length();
+        endAt += markEnd.length();
 
         int counter = StringUtil.findStringIn(str.substring(startAt, endAt), markStart);
         while (counter > 1) {
             str = str.substring(endAt);
-            endAt = str.indexOf(markEnd) + 2;
+            endAt = str.indexOf(markEnd);
             if (endAt == -1) {
-                endAt = str.length();
-                break;
+                return pass + str.length();
             }
+
+            endAt += markEnd.length();
 
             int count = StringUtil.findStringIn(str.substring(startAt, endAt), markStart);
             if (count == 0) {
@@ -49,6 +67,6 @@ public final class StringUtil {
             }
         }
 
-        return endAt;
+        return pass + endAt;
     }
 }

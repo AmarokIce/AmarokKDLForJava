@@ -1,12 +1,12 @@
 package club.someoneice.kdl;
 
+import club.someoneice.kdl.exception.UnexpectedTextInputException;
 import club.someoneice.kdl.objects.KDLNode;
 import club.someoneice.kdl.objects.KDLValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -16,7 +16,9 @@ import java.util.Map;
  * @author AmarokIce
  */
 public final class KDL {
-    private KDLNode parse(final String[] lines) {
+    private static final Map<String, String> variriablePools = new HashMap<>();
+
+    private static KDLNode parse(final String[] lines) {
         final List<String> list = Arrays.asList(lines);
 
         preHandler(list);
@@ -26,68 +28,12 @@ public final class KDL {
     }
 
 
-    private KDLValue<?>[] handler(final String[] raw) {
+    private static KDLValue<?>[] handler(final String[] raw) {
         final Map<String, String> dataPool = new HashMap<>();
-        final String[] lines = replaceMultilineData(raw, dataPool);
 
         return null;
     }
 
-    private String[] replaceMultilineData(final String[] raw, final Map<String, String> multiPools) {
-        final List<String> list = new ArrayList<>(raw.length);
-        int keyIndex = 0;
-
-        for (int i = 0; i < raw.length; i++) {
-            final String line = raw[i];
-            // Multi String Handler
-            if (line.endsWith("\"\"\"")) {
-                final int indexOfSpace = line.lastIndexOf(' ');
-                final String keyIn = line.substring(indexOfSpace, line.length());
-                final StringBuilder builder = new StringBuilder();
-                final String key = String.format("${DSL_KEY_INPUT_%d}", keyIndex++);
-                final boolean flag = keyIn.startsWith("/-");
-
-                i = findMutliString(raw, i + 1, flag ? keyIn.substring(2) : keyIn, builder);
-
-                if (flag) {
-                    continue;
-                }
-                multiPools.put(key, builder.toString());
-                list.add(line.replace(keyIn, key));
-                continue;
-            }
-
-            if (line.endsWith("{")) {
-                // TODO
-            }
-
-            list.add(line);
-        }
-
-        return list.toArray(new String[0]);
-    }
-
-
-    /**
-     * Handle the multi-line string / raw string.
-     *
-     * @param raw the raw lines.
-     * @param startAt the line startAt
-     * @param keyIn the key input
-     * @param builder StringBuilder object to hold the datas.
-     * @return
-     */
-    private int findMutliString(final String[] raw, final int startAt, final String keyIn, final StringBuilder builder) {
-        for (int i = startAt; i < raw.length; i++) {
-            final String line = raw[i];
-            builder.append('\n').append(line);
-            if (line.endsWith(keyIn)) {
-                return i;
-            }
-        }
-
-        return raw.length;
-    }
 
     /**
      * The pre handler will do three things:<br>
@@ -99,14 +45,13 @@ public final class KDL {
      * Because the multi-line's data like multi-line text should handle in deep.
      *
      * @param raw The raw data of lines.
-     * @return The data finish pre handle.
      */
-    private void preHandler(final List<String> raw) {
-        mergeMultilines(raw);
+    private static void preHandler(final List<String> raw) {
+        mergeMultiLines(raw);
         removeAllComment(raw);
     }
 
-    private void mergeMultilines(final List<String> lines) {
+    private static void mergeMultiLines(final List<String> lines) {
         final List<String> raw = new ArrayList<>(lines);
         final StringBuilder builder = new StringBuilder();
 
@@ -114,70 +59,144 @@ public final class KDL {
 
         for (final String lineRaw : raw) {
             builder.append(lineRaw.trim());
-            if (!lineRaw.endsWith("\\")) {
+            if (builder.charAt(builder.length() - 1) != '\\') {
                 lines.add(builder.toString().trim());
                 builder.setLength(0);
                 continue;
             }
-            builder.substring(0, builder.length() - 2);
+            builder.setLength(builder.length() - 2);
             builder.append(" ");
         }
     }
 
-    private void removeAllComment(final List<String> lines) {
-        for(int i = 0; i < lines.size(); i++) {
-            final StringBuilder line = new StringBuilder(lines.get(i));
-            removeSingleLineComment(line);
-            lines.set(i, line.toString().trim());
+    private static void findAndReplaceAllRawString(final List<String> lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            final String line = lines.get(i);
+
+            // TODO while
+            if (!line.contains("#\"")) {
+                continue;
+            }
+
+            findRawString(lines, i);
+        }
+    }
+
+    private static void findRawString(final List<String> lines, final int lineAt) {
+        int startAt = 0;
+
+        final StringBuilder line = new StringBuilder(lines.get(lineAt));
+        final int indexAt = line.indexOf("#\"");
+
+        final boolean isMultiString = line.substring(indexAt + 1).startsWith("\"\"\"\"");
+        final StringBuilder marked = new StringBuilder();
+        for(int i = indexAt + 1; i > 0; i--) {
+            final char c = line.charAt(i);
+            if (c != '#') {
+                startAt = i + 1;
+                break;
+            }
+            marked.append(c);
         }
 
-        final List<String> list = new ArrayList<>(lines);
-        removeMultiLineComment(list);
+        if (!isMultiString) {
+            final int index = line.indexOf("\"" + marked, indexAt + 1);
+            if (index == -1) {
+                throw new UnexpectedTextInputException("The single line of raw string has no end! At line " + lineAt);
+            }
+
+            final int counter = variriablePools.size();
+            final String variavleName = "$string%" + counter;
+            final String data = line.substring(startAt, index + marked.length() + 1);
+
+            variriablePools.put(variavleName, data);
+
+            line.delete(startAt, index + marked.length() + 1).insert(index, variavleName);
+            lines.set(lineAt, line.toString());
+        }
+
+        // TODO multi line.
+    }
+
+    private static void removeAllComment(final List<String> lines) {
+        final List<String> list = new ArrayList<>();
+        for (String s : lines) {
+            final StringBuilder line = new StringBuilder(s);
+            removeSingleLineComment(line);
+            removeSingleLineMultiComment(line);
+
+            final String lineStr = line.toString().trim();
+            if (lineStr.isEmpty()) {
+                continue;
+            }
+            list.add(lineStr);
+        }
+
+        removeMultiLineMultiComment(list);
         lines.clear();
         lines.addAll(list);
     }
 
-    private void removeSingleLineComment(final StringBuilder line) {
-        // Single line
+    private static void removeSingleLineComment(final StringBuilder line) {
         final int indexComment;
         if ((indexComment = line.indexOf("//")) != -1) {
             line.delete(indexComment, line.length());
         }
+    }
 
-        // Multi line
-        while(line.indexOf("/*") != -1) {
-            final int startAt = line.indexOf("/*");
-            final int endAt = StringUtil.findMarkRound(line.toString(), "/*", "*/");
+    private static void removeSingleLineMultiComment(final StringBuilder line) {
+        int pass = 0;
 
-            if (endAt == -1) {
-                return;
+        int startIndex;
+        int endIndex;
+        while((startIndex = line.indexOf("/*", pass)) != -1 && (endIndex = line.indexOf("*/", pass)) != -1) {
+            endIndex += 2;
+
+            if (endIndex < startIndex) {
+                pass += endIndex;
+                continue;
             }
 
-            line.delete(startAt, endAt);
-            line.insert(startAt, " ");
+            String subTempStr;
+            while ((subTempStr = line.substring(startIndex + 2, endIndex)).contains("/*")) {
+                startIndex += subTempStr.indexOf("/*") + 2;
+            }
+
+            line.delete(startIndex, endIndex).insert(startIndex, " ");
         }
     }
 
-    private void removeMultiLineComment(final List<String> raw) {
+    private static void removeMultiLineMultiComment(final List<String> raw) {
         final List<String> list = new ArrayList<>();
         final StringBuilder builder = new StringBuilder();
 
-        final Iterator<String> itor = raw.iterator();
-        while(itor.hasNext()) {
-            final String line = itor.next();
+        boolean flag = false;
+
+        for (String line : raw) {
+            builder.append(line);
 
             if (line.contains("/*")) {
-                builder.append(line);
+                flag = true;
                 continue;
             }
 
+            if (!flag) {
+                list.add(builder.toString().trim());
+                builder.setLength(0);
+                continue;
+            }
+
+            removeSingleLineMultiComment(builder);
             if (builder.indexOf("/*") != -1) {
-                removeSingleLineComment(builder);
                 continue;
             }
 
-            list.add(builder.toString());
-            return;
+            list.add(builder.toString().trim());
+            flag = false;
+            builder.setLength(0);
         }
+
+        raw.clear();
+        raw.addAll(list);
     }
 }
