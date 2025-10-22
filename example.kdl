@@ -1,0 +1,64 @@
+string "string too" """
+    Multi-Line
+    Text
+""" #"
+    "Rich"
+     Text
+
+    \n <- '\\n'
+"# #####"
+    #"
+        Rich Text in Rich Text
+    "#
+"#####
+
+
+key=value (annoKey)keyWithAnno=(annoValue)valueWithAnno {
+    properties 114514
+    properties 1919810
+}
+
+"""
+Multi-Line
+Key
+"""="""
+Multi-Line
+Value
+"""
+
+// Comment
+
+/* Comment */
+
+/* Comment
+    /* Comment
+        /* Comment
+            /*  Comment
+                 end
+            */ end
+        */ end
+    */ end
+*/
+
+/-I am the line of "slashdash" comment, all of this line are comments.
+
+head /-I-am-comment I-am-not-comment /-{
+    all {
+        of {
+            I {
+                comments
+            }
+        }
+    }
+}
+
+
+number 114 -5.14 .19 +0x19 8e10 #inf #-inf #nan
+
+boolean #true #false
+
+null #null
+
+matrix 1 1 4 \
+       5 1 4 \
+       19 19 810
