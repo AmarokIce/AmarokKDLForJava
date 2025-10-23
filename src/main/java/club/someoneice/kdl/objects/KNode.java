@@ -23,9 +23,9 @@ public abstract class KNode<T> {
   }
 
   /**
-   * KDL3 can set a cast type for values, like (int)114514 . <p />
+   * KDL3 can set a cast type for values, like (int)114514 . <p></p>
    * The parser does not handle such projections during inference,
-   * please perform external projection processing based on annotations if you needed. <p />
+   * please perform external projection processing based on annotations if you needed. <p></p>
    * Return null if the node had no cast type.
    */
   @Nullable
@@ -64,6 +64,10 @@ public abstract class KNode<T> {
       return KdlTypes.Array;
     }
 
+    if (this instanceof KDoc) {
+      return KdlTypes.Doc;
+    }
+
     if (this instanceof KPair<?, ?>) {
       return KdlTypes.Pair;
     }
@@ -83,11 +87,31 @@ public abstract class KNode<T> {
         return new KBoolean((Boolean) this.value);
       case Array:
         return new KArray((List<KNode<?>>) this.value);
+      case Doc:
       case Pair:
         return this;
       default:
         return KNull.INSTANCE;
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  public <K extends KNode<?>, V extends KNode<?>> KPair<K, V> asPair() {
+    return (KPair<K, V>) this.asTypeNode();
+  }
+
+  public KArray asArrayOrEmpty() {
+    if (this.getType() != KdlTypes.Array) {
+      return new KArray();
+    }
+    return (KArray) this.asTypeNode();
+  }
+
+  public KDoc asDocOrEmpty() {
+    if (this.getType() != KdlTypes.Doc) {
+      return new KDoc();
+    }
+    return (KDoc) this.asTypeNode();
   }
 
   @Override
@@ -102,12 +126,18 @@ public abstract class KNode<T> {
     return Objects.hashCode(getValue());
   }
 
+  @Override
+  public String toString() {
+    return this.getValue().toString();
+  }
+
   public enum KdlTypes {
     String,
     Number,
     Boolean,
     Array,
     Pair,
+    Doc,
     Null
   }
 }

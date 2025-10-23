@@ -1,10 +1,12 @@
 package club.someoneice.kdl;
 
 import club.someoneice.kdl.exception.KDLStyleException;
-import club.someoneice.kdl.objects.*;
+import club.someoneice.kdl.objects.KArray;
+import club.someoneice.kdl.objects.KDoc;
+import club.someoneice.kdl.objects.KNode;
+import club.someoneice.kdl.objects.KPair;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,7 +19,7 @@ import java.util.*;
  * @author AmarokIce
  */
 public final class KDL {
-  public static KArray parse(@Nonnull final InputStream stream, boolean shouldClose)
+  public static KDoc parse(@Nonnull final InputStream stream, boolean shouldClose)
       throws KDLStyleException {
     try {
       byte[] bytes = new byte[stream.available()];
@@ -31,24 +33,24 @@ public final class KDL {
       return parse(Arrays.asList(dat.split("\n")));
     } catch (IOException e) {
       e.printStackTrace();
-      return new KArray();
+      return new KDoc();
     }
   }
 
   @Nonnull
-  public static KArray parse(@Nonnull final File file) throws KDLStyleException {
+  public static KDoc parse(@Nonnull final File file) throws KDLStyleException {
     try {
       return parse(Files.readAllLines(file.toPath()));
     } catch (IOException e) {
       e.printStackTrace();
-      return new KArray();
+      return new KDoc();
     }
   }
 
   @Nonnull
-  public static KArray parse(@Nonnull final List<String> lines) throws KDLStyleException {
+  public static KDoc parse(@Nonnull final List<String> lines) throws KDLStyleException {
     preHandler(lines);
-    return handler(lines);
+    return handler(lines).cleanEmptyLine();
   }
 
   /**
@@ -70,238 +72,157 @@ public final class KDL {
     KDLHelper.removeSlashdashComment(lines);
   }
 
-  static KArray handler(final List<String> raw) throws KDLStyleException {
-    final List<KArray> result = new ArrayList<>();
+  private static KDoc handler(List<String> lines) {
+    final KDoc result = new KDoc();
 
-    final Queue<String> queue = new ArrayDeque<>(raw);
+    final Queue<String> queue = new ArrayDeque<>(lines);
 
     final StringBuilder sb = new StringBuilder();
+    final StringBuilder node = new StringBuilder();
     final StringBuilder endOf = new StringBuilder();
-    final StringBuilder anno = new StringBuilder();
 
     final KArray array = new KArray();
-    KNode<?> key = null;
 
-    while (!queue.isEmpty()) {
-      final String line = queue.poll();
-      final String[] nodes = line.split(" ");
-      for (String node : nodes) {
-        final StringBuilder nb = new StringBuilder(node);
-        final KNode<?> nd = handleNode(nb, sb, endOf, anno, queue);
-        if (Objects.isNull(nd)) {
-          continue;
-        }
+    int deepen = 0;
+    final List<String> childrenLines = new ArrayList<>();
+    boolean ig = false;
 
-        sb.setLength(0);
-        if (node.startsWith("=")) {
-          if (Objects.nonNull(key)) {
-            throw new KDLStyleException("Duplicate key at " + sb);
+    while(!queue.isEmpty()) {
+      node.append(queue.poll());
+
+      while(node.length() > 0) {
+        final String lineRaw = node.toString().trim();
+
+        if (deepen == 0) {
+          if (endOf.length() != 0 || (!lineRaw.startsWith("{") && !lineRaw.endsWith("/-{"))) {
+            handleNode(node, endOf, sb, array);
+            continue;
           }
 
-          key = nd.setTypeComment(anno.toString());
-          anno.setLength(0);
+          if (lineRaw.startsWith("/-")) {
+            ig = true;
+            node.delete(0, 2);
+          }
+
+          node.delete(0, node.indexOf("{") + 1);
+          childrenLines.add(node.toString());
+          deepen++;
+          node.setLength(0);
           continue;
         }
 
-        if (Objects.isNull(key)) {
-          array.add(nd.setTypeComment(anno.toString()));
-          anno.setLength(0);
+
+        if (!lineRaw.startsWith("}")) {
+          childrenLines.add(node.toString());
+          node.setLength(0);
           continue;
         }
 
-        array.add(new KPair<>(key, nd.setTypeComment(anno.toString())));
-        anno.setLength(0);
-        key = null;
+        if (--deepen != 0) {
+          continue;
+        }
+
+        if (!ig) {
+          array.add(handler(childrenLines).cleanEmptyLine());
+        }
+        childrenLines.clear();
+        result.add(new KArray(array));
+        array.clear();
       }
 
-      if (sb.length() > 0) {
-        continue;
+      if (endOf.length() == 0 && childrenLines.isEmpty()) {
+        result.add(new KArray(array));
+        array.clear();
       }
-
-      result.add(new KArray(array));
-      array.clear();
     }
 
-    array.clear();
-    array.addAll(result);
-
-    return array;
+    return result;
   }
 
-  // Fixme 字符串解析的空格会被缺省。
-  @Nullable
-  private static KNode<?> handleNode(StringBuilder node,
-                                     StringBuilder sb,
-                                     StringBuilder endOf,
-                                     StringBuilder anno,
-                                     Queue<String> queue) throws KDLStyleException {
-    if (endOf.length() != 0) {
-      final int indexEnd = node.indexOf(endOf.toString());
+  private static void handleNode(StringBuilder line, StringBuilder endOf,
+                                 StringBuilder sb, KArray array) {
+    if (endOf.length() > 0) {
+      final int indexEnd = line.indexOf(endOf.toString());
+
       if (indexEnd == -1) {
-        sb.append(" ").append(node);
-        return null;
+        sb.append(line).append("\n");
+        line.setLength(0);
+        // Multi line, Next line.
+        return;
       }
 
-      if (endOf.length() > 1) {
-        KDLHelper.trim(sb);
-      }
-
-      sb.append(node, 0, indexEnd);
-      node.delete(0, indexEnd + endOf.length());
-
+      sb.append(line, 0, indexEnd + endOf.length());
+      line.delete(0, indexEnd + endOf.length());
       endOf.setLength(0);
-      return new KString(sb.toString());
+      addStringToArray(array, sb);
+      return;
     }
 
-    String raw = node.toString();
+    line.delete(0, KDLHelper.countStartStr(line.toString(), " "));
+    String raw = line.toString();
     if (raw.startsWith("/-")) {
-      return null;
+      return;
     }
 
-    if (raw.equals("{")) {
-      final List<String> arr = new ArrayList<>();
-      int count = 0;
-      while (!queue.isEmpty()) {
-        final String line = queue.poll();
-        if (line.trim().endsWith("{")) {
-          count++;
-          continue;
-        }
-        if (line.trim().endsWith("}")) {
-          count--;
-        }
-        if (count == 0) {
-          return handler(arr);
-        }
-      }
-    }
-
-    if (raw.startsWith("\"")) {
-      endOf.append("\"");
-      node.delete(0, 1);
-      return handleNode(node, sb, endOf, anno, queue);
-    }
-
-    if (raw.startsWith("\"\"\"")) {
-      endOf.append("\"\"\"");
-      node.delete(0, 3);
-      return handleNode(node, sb, endOf, anno, queue);
+    if (raw.startsWith("=")) {
+      sb.append("=");
+      line.delete(0, 1);
+      raw = line.toString();
     }
 
     if (raw.startsWith("(")) {
-      anno.append(raw, 1, raw.indexOf(")"));
-      sb.delete(0, raw.indexOf(")") + 1);
-      raw = sb.toString();
+      final int indexAnn = line.indexOf(")");
+      sb.append("(")
+          .append(line, 1, indexAnn)
+          .append(")");
+      line.delete(0, indexAnn + 1);
+      raw = line.toString();
     }
 
-    KNode<?> result;
-    final int indexOfPair = raw.indexOf("=");
-    final String[] dat = raw.split("=");
-    if (Objects.nonNull(result = checkNull(dat[0]))) {
-      node.delete(0, indexOfPair == -1 ? 0 : indexOfPair);
-      return result;
+    if (endOf.append(KDLHelper.findStringEndSign(raw)).length() > 0) {
+      sb.append(KDLHelper.getStartByEnd(endOf.toString()));
+      line.delete(0, endOf.length());
+      return;
     }
 
-    if (Objects.nonNull(result = checkBoolean(dat[0]))) {
-      node.delete(0, indexOfPair == -1 ? 0 : indexOfPair);
-      return result;
-    }
-
-    if (Objects.nonNull(result = checkNumber(dat[0]))) {
-      node.delete(0, indexOfPair == -1 ? 0 : indexOfPair);
-      return result;
-    }
-
-    if (!raw.startsWith("#")) {
-      node.delete(0, indexOfPair == -1 ? 0 : indexOfPair);
-      return new KString(dat[0]);
-    }
-
-    final StringBuilder endOfSb = new StringBuilder();
-    final int countSignRaw = KDLHelper.countStartStr(raw, "#");
-    final String signRaw = KDLHelper.forEachFill("#", countSignRaw);
-    endOfSb.append(signRaw);
-
-    final int countSignStr = KDLHelper.countStartStr(
-        raw.replaceFirst(endOfSb.toString(), ""), "\"");
-    final String signStr = KDLHelper.forEachFill("\"", countSignStr);
-    endOfSb.insert(0, signStr);
-    endOf.append(endOfSb);
-
-    node.delete(0, endOf.length());
-    return handleNode(node, sb, endOf, anno, queue);
+    raw = raw.split(" ")[0];
+    raw = raw.split("=")[0];
+    line.delete(0, raw.length());
+    addStringToArray(array, sb.append(raw));
   }
 
-  @Nullable
-  private static KNumber checkNumber(String raw) {
-    raw = raw.replace("_", "").toLowerCase();
+  private static void addStringToArray(KArray array, StringBuilder value) {
+    String anno = "";
 
-    switch (raw) {
-      case "#inf":
-        return new KNumber(Double.MAX_VALUE);
-      case "#-inf":
-        return new KNumber(Double.MIN_VALUE);
-      case "#nan":
-        return new KNumber(Double.NaN);
+    if (value.length() == 0) {
+      return;
     }
 
-    try {
-      if (raw.startsWith("0x")) {
-        return new KNumber(Integer.parseInt(raw, 16));
-      }
-
-      if (raw.startsWith("0o")) {
-        return new KNumber(Integer.parseInt(raw, 10));
-      }
-
-      if (raw.startsWith("0b")) {
-        return new KNumber(Integer.parseInt(raw, 2));
-      }
-
-      int e = 0;
-
-      if (raw.contains("e")) {
-        final String[] dat = raw.split("e");
-        e = Integer.parseInt(dat[1]);
-        raw = dat[0];
-      }
-
-      double db = Double.parseDouble(raw.startsWith(".") ? raw.substring(1) : raw);
-      db /= 10;
-      if (e != 0) {
-        db /= (db * 10);
-      }
-
-      return new KNumber(db);
-    } catch (Exception ex) {
-      // Jump to string.
+    final KNode<?> nodeKey = value.charAt(0) == '=' ? array.remove(array.size() - 1) : null;
+    value.delete(0, Objects.isNull(nodeKey) ? 0 : 1);
+    if (value.charAt(0) == '(') {
+      final int indexAnn = value.indexOf(")");
+      anno = value.substring(1, indexAnn);
+      value.delete(0, indexAnn + 1);
     }
 
-    return null;
-  }
+    final String endOf = KDLHelper.findStringEndSign(value.toString());
+    if (!endOf.isEmpty()) {
+      value.delete(0, endOf.length());
+      final int len = value.length();
+      value.delete(len - endOf.length(), len);
+      KDLHelper.trim(value);
+    }
+    final KNode<?> nodeValue = KDLHelper.createNodeByString(value.toString())
+        .setTypeComment(anno);
 
-  @Nullable
-  private static KBoolean checkBoolean(String raw) {
-    raw = raw.toLowerCase();
-
-    if (raw.equals("#true")) {
-      return new KBoolean(true);
+    if (Objects.nonNull(nodeKey)) {
+      array.add(new KPair<>(nodeKey, nodeValue));
+      value.setLength(0);
+      return;
     }
 
-    if (raw.equals("#false")) {
-      return new KBoolean(false);
-    }
-
-    return null;
-  }
-
-  @Nullable
-  private static KNull checkNull(String raw) {
-    raw = raw.toLowerCase();
-    if (raw.equals("#null")) {
-      return KNull.INSTANCE;
-    }
-
-    return null;
+    array.add(nodeValue);
+    value.setLength(0);
   }
 }

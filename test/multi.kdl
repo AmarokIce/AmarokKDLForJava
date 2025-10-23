@@ -1,0 +1,18 @@
+SimpleString
+"Single Line String"
+"""
+Multi
+Line
+String
+"""
+"""
+    Multi
+        Line
+    String
+        With
+    Style
+"""
+"String" "And" "String"
+"""Multi String""" "And" """Multi String"""
+#"Rich "String" Here"#
+"StringKey"="StringValue"
