@@ -24,6 +24,6 @@ repositories {
 }
 
 dependencies {
-    implementation "club.snowlyicewolf:amarok-kdl-for-java:1.0.0"
+    implementation "club.snowlyicewolf:amarok-kdl-for-java:1.0.1"
 }
 ```
