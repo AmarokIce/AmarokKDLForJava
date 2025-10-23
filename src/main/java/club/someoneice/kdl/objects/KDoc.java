@@ -45,6 +45,9 @@ public class KDoc extends KNode<List<KArray>> implements Iterable<KArray>, List<
       for (int i = 1; i < kNodes.size(); i++) {
         list.add(kNodes.get(i));
       }
+      if (map.containsKey(key)) {
+        map.get(key).addAll(list);
+      }
       map.put(key, list);
     }
     return map;
